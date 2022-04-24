@@ -10,6 +10,7 @@ import {
 import { addDays, isWithinInterval, startOfDay } from "date-fns";
 import { startOfDayUTC, endOfDayUTC } from "../../../src/utils/transactionUtils";
 import { isMobile } from "../../support/utils";
+import { format as formatDate } from "date-fns";
 
 const { _ } = Cypress;
 
@@ -18,6 +19,27 @@ type TransactionFeedsCtx = {
   user?: User;
   contactIds?: string[];
 };
+
+const pickDateRange = (startDate: Date, endDate: Date): void => {
+  const selectDate = (date: Date) => {
+    return cy.get(`[data-date='${formatDate(date, "yyyy-MM-dd")}']`).click({ force: true });
+  };
+  
+  // @ts-ignore
+  cy.clock(startDate.getTime(), ["Date"]);
+  cy.getBySelLike("filter-date-range-button").click({ force: true });
+  cy.get(".Cal__Header__root").should("be.visible");
+  selectDate(startDate);
+  selectDate(endDate);
+  cy.get(".Cal__Header__root").should("not.exist");
+};   
+
+const nextTransactionFeedPage = (service: string, page: number): void => {
+  cy.window({ log: false }).then((win) => {
+    // @ts-ignore
+    return win[service].send("FETCH", { page });
+  }); 
+}
 
 const setTransactionAmountRange = (min: number, max: number): void => {
   cy.getBySel("transaction-list-filter-amount-range-button")
@@ -211,7 +233,7 @@ describe("Transaction Feed", function () {
             expect(results).have.length(Cypress.env("paginationPageSize"));
             expect(pageData.page).to.equal(2);
             cy.visualSnapshot(`Paginate ${feedName} Next Page`);
-            cy.nextTransactionFeedPage(feed.service, pageData.totalPages);
+            nextTransactionFeedPage(feed.service, pageData.totalPages);
           });
 
         cy.wait(`@${feed.routeAlias}`)
@@ -248,7 +270,7 @@ describe("Transaction Feed", function () {
 
           cy.wait(`@${feed.routeAlias}`).its("response.body.results").as("unfilteredResults");
 
-          cy.pickDateRange(dateRangeStart, dateRangeEnd);
+          pickDateRange(dateRangeStart, dateRangeEnd);
 
           cy.wait(`@${feed.routeAlias}`)
             .its("response.body.results")
@@ -294,7 +316,7 @@ describe("Transaction Feed", function () {
         cy.getBySelLike(feed.tab).click();
         cy.wait(`@${feed.routeAlias}`);
 
-        cy.pickDateRange(dateRangeStart, dateRangeEnd);
+        pickDateRange(dateRangeStart, dateRangeEnd);
         cy.wait(`@${feed.routeAlias}`);
 
         cy.getBySelLike("transaction-item").should("have.length", 0);
